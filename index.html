@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FollowerText</title>
+    <style>
+        body { font-family: 'Consolas', monospace; background: #0d1117; color: #c9d1d9; padding: 40px; }
+        .panel { max-width: 600px; margin: auto; background: #161b22; padding: 25px; border-radius: 12px; border: 1px solid #30363d; }
+        input { width: 100%; padding: 12px; margin: 10px 0; background: #0d1117; border: 1px solid #30363d; color: #58a6ff; border-radius: 6px; box-sizing: border-box; }
+        .status { padding: 10px; margin: 15px 0; border-radius: 6px; font-size: 0.9rem; }
+        .info { background: rgba(56, 139, 253, 0.1); color: #58a6ff; border: 1px solid rgba(56, 139, 253, 0.4); }
+        button { width: 100%; padding: 15px; background: #238636; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #2ea043; }
+        #log { height: 150px; overflow-y: auto; background: #000; padding: 10px; margin-top: 20px; font-size: 0.8rem; border: 1px solid #30363d; }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+    <h2>FollowerText</h2>
+    
+    <div class="status info" id="stockStatus">Checking Stock...</div>
+
+    <input type="text" id="target" placeholder="Target Username">
+    <input type="text" id="sentence" placeholder="Sentence (e.g. Hello World)">
+
+    <button onclick="runMission()">Deploy</button>
+
+    <div id="log"></div>
+</div>
+
+<script>
+    // --- CONFIGURATION ---
+    const GITHUB_TOKEN = "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"; 
+    const REPO_OWNER = "rigrblxmain";
+    const REPO_NAME = "FollowerText";
+    const FILE_PATH = "stock.txt"; // Path to your stock file in the repo
+    // ---------------------
+
+    let currentStock = [];
+    let fileSha = "";
+
+    // 1. Grab stock from GitHub on load
+    async function fetchStock() {
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`;
+        try {
+            const res = await fetch(url, {
+                headers: { "Authorization": `token ${GITHUB_TOKEN}` }
+            });
+            const data = await res.json();
+            fileSha = data.sha;
+            const content = atob(data.content); // Decode base64
+            currentStock = content.split('\n').filter(line => line.trim() !== '');
+            document.getElementById('stockStatus').innerText = `Stock: ${currentStock.length} Accounts Loaded`;
+        } catch (e) {
+            document.getElementById('stockStatus').innerText = "Error loading stock.";
+        }
+    }
+
+    // 2. The Logic: Deploy, then update GitHub to remove used ones
+    async function runMission() {
+        const target = document.getElementById('target').value;
+        const sentence = document.getElementById('sentence').value.trim().split(/\s+/);
+        const count = sentence.length;
+
+        if (currentStock.length < count) {
+            alert("Not enough accounts in stock, fam!");
+            return;
+        }
+
+        const logBox = document.getElementById('log');
+        logBox.innerHTML += `<div>[SYSTEM] Deploying ${count} accounts...</div>`;
+
+        // REVERSE LOGIC for Follower Feed
+        const reversedWords = [...sentence].reverse();
+        const usedAccounts = currentStock.slice(0, count);
+        const remainingStock = currentStock.slice(count);
+
+        // Simulate the follows
+        usedAccounts.forEach((acc, i) => {
+            logBox.innerHTML += `<div>[${acc.split(':')[0]}] Setting name to <span style="color:#fcc419">"${reversedWords[i]}"</span> and following ${target}</div>`;
+        });
+
+        // 3. REMOVE USED ACCOUNTS (Update GitHub)
+        const newContent = btoa(remainingStock.join('\n'));
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`;
+        
+        const updateRes = await fetch(url, {
+            method: "PUT",
+            headers: { 
+                "Authorization": `token ${GITHUB_TOKEN}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                message: `Purged ${count} used accounts`,
+                content: newContent,
+                sha: fileSha
+            })
+        });
+
+        if (updateRes.ok) {
+            logBox.innerHTML += `<div style="color:#238636">[SUCCESS] Stock updated on GitHub. ${remainingStock.length} left.</div>`;
+            fetchStock(); // Refresh local view
+        }
+    }
+
+    fetchStock();
+</script>
+
+</body>
+</html>
